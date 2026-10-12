@@ -109,9 +109,9 @@ tr:hover td{background:#faf8fb}
 <div class="filters"><label>Season<select id="exeSeason" onchange="renderExec()"></select></label><span class="note" id="exeNote" style="margin:0"></span></div>
 <div class="grid" id="exeCards"></div>
 <div class="grid" style="margin-top:16px">
-<div class="card wide"><div class="title">Final Participants &mdash; selected season vs. previous seasons</div><div class="muted">CTR-005 &middot; up to 3 previous seasons &middot; targets: 750 (2026/27), 800 (2027/28), none before</div><div class="chartbox"><canvas id="exeFinal"></canvas></div></div>
-<div class="card wide"><div class="title">Funnel rates by season</div><div class="muted">EXE-002, EXE-003, CTR-006 &middot; completed seasons only</div><div class="chartbox"><canvas id="exeRates"></canvas></div></div>
-<div class="card full"><div class="title">Final Participants vs. cumulative target &mdash; season 2027/28</div><div class="muted">CTR-005 &middot; targets by region and month from YFU (target-values-by-region.xlsx) &middot; cumulative at month end &middot; actuals shown for the total only</div><div class="filters" style="margin:0 0 6px"><label>Region<select id="tgtRegion" onchange="renderTgt()"><option value="all">All participants</option><option value="usrp">US RP</option><option value="can">Canada</option></select></label><span class="note" style="margin:0" id="tgtNote"></span></div><div class="chartbox" style="height:320px"><canvas id="exeTgt"></canvas></div></div>
+<div class="card wide"><div class="title">Final Participants by season</div><div class="muted">CTR-005 &middot; contracts signed minus withdrawals &middot; dark bar = selected season, light bars = previous seasons &middot; progress against target is shown in the card above and in the monthly chart below</div><div class="chartbox"><canvas id="exeFinal"></canvas></div></div>
+<div class="card wide"><div class="title">Funnel rates by season (%)</div><div class="muted">Overall conversion = final participants &divide; registrations &middot; Recruitment success = contracts signed &divide; applications &middot; Withdrawal rate = withdrawals &divide; contracts signed &middot; completed seasons only</div><div class="chartbox"><canvas id="exeRates"></canvas></div></div>
+<div class="card full"><div class="title">Are we on track for 800 final participants? &mdash; season 2027/28</div><div class="muted">CTR-005 &middot; each point = total Final Participants (signed contracts minus withdrawals) since the start of the season, at the end of that month &middot; targets from YFU (target-values-by-region.xlsx)</div><div class="filters" style="margin:0 0 10px"><label>Region<select id="tgtRegion" onchange="renderTgt()"><option value="all">All participants</option><option value="usrp">US RP</option><option value="can">Canada</option></select></label><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="tgtPrev" onchange="renderTgt()">Compare with previous season (2026/27)</label></div><div id="tgtStatus" style="margin:0 0 12px"></div><div class="chartbox" style="height:320px"><canvas id="exeTgt"></canvas></div></div>
 <div class="sectionhead">Market context &mdash; AJA (nonprofit exchange organisations)</div>
 <div id="exeMarket" style="display:contents"></div>
 <div class="card full"><div class="title">YFU vs. AJA market &mdash; growth by season</div><div class="muted">MKT-009 vs. MKT-011 &middot; AJA dataset, change vs. previous season &middot; overall market (Gesamtmarkt) metrics are on the Market page</div><div class="chartbox"><canvas id="exeMkt"></canvas></div></div>
@@ -230,6 +230,8 @@ const P1='#642869',P2='#8e5a93',P3='#c4a3c8',T1='#008a8f',T2='#00B4B9',T3='#7fd8
 const MON=['Apr','May','Jun','Jul','Aug','Sep'];
 const MON_FULL=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 Chart.defaults.font.size=11; Chart.defaults.plugins.legend.position='bottom'; Chart.defaults.plugins.legend.labels.boxWidth=12;
+const VL={id:'vl',afterDatasetsDraw(ch){ch.data.datasets.forEach((d,i)=>{ if(!d.showVal) return; const m=ch.getDatasetMeta(i); if(m.hidden) return; m.data.forEach((el,j)=>{const v=d.data[j]; if(v==null) return; const c=ch.ctx; c.save(); c.fillStyle=d.valColor||'#444'; c.font='bold 11px Segoe UI,Arial'; c.textAlign='center'; c.fillText(d.valFmt?d.valFmt(v):v, el.x, el.y-(d.valOffset==null?7:d.valOffset)); c.restore();});});}};
+Chart.register(VL);
 const CH={};
 function mk(id,cfg){ if(CH[id])CH[id].destroy(); cfg.options=Object.assign({responsive:true,maintainAspectRatio:false},cfg.options||{}); CH[id]=new Chart(document.getElementById(id),cfg); }
 const GRID={color:'#f0ecf1'};
@@ -268,16 +270,17 @@ function renderExec(){
   document.getElementById('exeCards').innerHTML=html;
   const seas=S.slice(Math.max(0,i-3),i+1);
   mk('exeFinal',{type:'bar',data:{labels:seas,datasets:[
-    {label:'Final Participants',data:seas.map(x=>F[x].final),backgroundColor:seas.map(x=>x===s?P1:P3),borderRadius:5},
-    {type:'line',label:'Target',data:seas.map(x=>TARGET[x]||null),borderColor:T1,backgroundColor:T1,pointStyle:'rectRot',pointRadius:8,showLine:false}]},
-    options:{scales:baseScales(),plugins:{tooltip:{callbacks:{afterLabel:c=>{ if(c.datasetIndex!==0)return ''; const j=idx(c.label); return j>0?'vs previous season: '+((F[c.label].final/F[S[j-1]].final-1)*100).toFixed(1)+'%':'';}}}}}});
+    {label:'Final Participants',data:seas.map(x=>F[x].final),backgroundColor:seas.map(x=>x===s?P1:P3),borderRadius:5,showVal:true,valFmt:fmt,valColor:'#444'}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{afterLabel:c=>{ const j=idx(c.label); return j>0?'vs previous season: '+((F[c.label].final/F[S[j-1]].final-1)*100).toFixed(1)+'%':'';}}}},scales:{y:{beginAtZero:true,grid:GRID,suggestedMax:900,title:{display:true,text:'Final participants'}},x:{grid:{display:false}}}}});
 }
 function renderExecStatic(){
   const seas=S.slice(0,5);
+  const pf=v=>v.toFixed(1)+'%';
   mk('exeRates',{type:'line',data:{labels:seas,datasets:[
-    {label:'Overall Funnel Conversion (EXE-002) %',data:seas.map(x=>kpiOf(x).conv),borderColor:P1,backgroundColor:P1,tension:.25},
-    {label:'Recruitment Success (EXE-003) %',data:seas.map(x=>kpiOf(x).succ),borderColor:T2,backgroundColor:T2,tension:.25},
-    {label:'Withdrawal Rate (CTR-006) %',data:seas.map(x=>kpiOf(x).wdr),borderColor:P3,backgroundColor:P3,tension:.25}]},options:{scales:baseScales()}});
+    {label:'Recruitment success (EXE-003)',data:seas.map(x=>kpiOf(x).succ),borderColor:T2,backgroundColor:T2,tension:.25,showVal:true,valFmt:pf,valColor:T1},
+    {label:'Overall conversion (EXE-002)',data:seas.map(x=>kpiOf(x).conv),borderColor:P1,backgroundColor:P1,tension:.25,showVal:true,valFmt:pf,valColor:P1,valOffset:9},
+    {label:'Withdrawal rate (CTR-006)',data:seas.map(x=>kpiOf(x).wdr),borderColor:P3,backgroundColor:P3,tension:.25,showVal:true,valFmt:pf,valColor:'#8e5a93',valOffset:-16}]},
+    options:{scales:{y:{beginAtZero:true,suggestedMax:35,grid:GRID,ticks:{callback:v=>v+'%'},title:{display:true,text:'% of the previous funnel step'}},x:{grid:{display:false}}},plugins:{tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y.toFixed(1)+'%'}}}}});
   const A=D.aja_seasons, tot=A.map((s,i)=>Object.values(D.aja_org).reduce((a,v)=>a+v[i],0)), y=D.aja_org['YFU'];
   const j=A.length-1, ag=(tot[j]/tot[j-1]-1)*100, agp=(tot[j-1]/tot[j-2]-1)*100, yg=(y[j]/y[j-1]-1)*100, ygp=(y[j-1]/y[j-2]-1)*100, ash=y.map((v,i)=>v/tot[i]*100);
   const at=`<span class="season">Season ${A[j]} vs. ${A[j-1]}</span>`;
@@ -437,7 +440,6 @@ function renderAja(){
   document.getElementById('ajaNote').textContent=note;
   mk('aja1',{type:'bar',data:{labels:A,datasets:ds},options:{scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:GRID}}}});
 }
-
 /* ---------- TARGETS BY REGION (YFU file) ---------- */
 const TG={lab:['31 Aug','30 Sep','31 Oct','30 Nov','31 Dec','31 Jan','28 Feb','31 Mar','30 Apr','End of season'],
  all:[294,378,469,556,623,684,748,768,764,800],usrp:[65,86,103,120,134,150,155,160,158,153],can:[62,90,115,142,165,175,190,200,205,200],
@@ -445,11 +447,18 @@ const TG={lab:['31 Aug','30 Sep','31 Oct','30 Nov','31 Dec','31 Jan','28 Feb','3
  act:[287,352,null,null,null,null,null,null,null,null],
  prev:[218,327,399,483,552,611,717,757,771,772]};
 function renderTgt(){
-  const r=document.getElementById('tgtRegion').value, nm={all:'All participants',usrp:'US RP',can:'Canada'}[r];
-  const ds=[{label:'Target '+nm+' (cumulative)',data:TG[r],borderColor:T1,backgroundColor:T1,borderDash:[6,4],tension:.2,pointStyle:'rectRot',pointRadius:5}];
-  if(r==='all'){ds.push({label:'2027/28 actual to date',data:TG.act,borderColor:P1,backgroundColor:P1,borderWidth:3.5,pointRadius:6,spanGaps:false});ds.push({label:'2026/27 same period (previous season)',data:TG.prev,borderColor:P3,backgroundColor:P3,tension:.2,pointRadius:2});}
-  document.getElementById('tgtNote').textContent=r==='all'?'Actual 2027/28: 352 to date (29 Sep) vs. target 378 at 30 Sep.':'Monthly actuals by region will be added once the region mapping is agreed with YFU.';
-  mk('exeTgt',{type:'line',data:{labels:TG.lab,datasets:ds},options:{scales:baseScales()}});
+  const r=document.getElementById('tgtRegion').value, nm={all:'All participants',usrp:'US RP',can:'Canada'}[r], showPrev=document.getElementById('tgtPrev').checked;
+  const ds=[{label:'YFU target (cumulative)',data:TG[r],borderColor:T1,backgroundColor:T1,borderDash:[6,4],tension:.2,pointStyle:'rectRot',pointRadius:6,showVal:true,valFmt:fmt,valColor:T1,valOffset:10}];
+  const st=document.getElementById('tgtStatus');
+  if(r==='all'){
+    ds.push({label:'Actual 2027/28 (to date)',data:TG.act,borderColor:P1,backgroundColor:P1,borderWidth:3.5,pointRadius:7,spanGaps:false,showVal:true,valFmt:fmt,valColor:P1,valOffset:-18});
+    if(showPrev) ds.push({label:'2026/27 same period (previous season)',data:TG.prev,borderColor:P3,backgroundColor:P3,tension:.2,pointRadius:2,borderWidth:2});
+    const i=TG.act.reduce((a,v,k)=>v!=null?k:a,0), act=TG.act[i], tg=TG.all[i], gap=act-tg, pc=act/tg*100, prevV=TG.prev[i];
+    st.innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap"><div class="card" style="padding:12px 16px;border-top:3px solid var(--p1)"><div class="klabel">Actual at ${TG.lab[i]}</div><div class="value" style="font-size:22px;margin-top:4px">${fmt(act)}</div></div><div class="card" style="padding:12px 16px;border-top:3px solid var(--t1)"><div class="klabel">Target at ${TG.lab[i]}</div><div class="value" style="font-size:22px;margin-top:4px;color:var(--t1)">${fmt(tg)}</div></div><div class="card" style="padding:12px 16px;border-top:3px solid ${gap<0?'var(--p2)':'var(--t2)'}"><div class="klabel">Gap to target</div><div class="value" style="font-size:22px;margin-top:4px">${gap>0?'+':''}${fmt(gap)}<span class="trend ${gap<0?'down':'up'}">${f1(pc)}% of target</span></div></div><div class="card" style="padding:12px 16px;border-top:3px solid var(--p3)"><div class="klabel">Same point last season</div><div class="value" style="font-size:22px;margin-top:4px">${fmt(prevV)}${tPct(act,prevV)}</div></div></div>`;
+  } else {
+    st.innerHTML='<div class="note">Monthly actuals by region will be added once the mapping between countries and regions is agreed with YFU. The line shows the target only.</div>';
+  }
+  mk('exeTgt',{type:'line',data:{labels:TG.lab,datasets:ds},options:{scales:{y:{beginAtZero:true,suggestedMax:900,grid:GRID,title:{display:true,text:'Cumulative final participants'}},x:{grid:{display:false}}}}});
 }
 function renderTgtStatic(){
   const k=Object.keys(TG.end);
